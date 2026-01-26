@@ -14,3 +14,9 @@ Example:
 
 ## Notes
 - Each folder contains the scripts/notebooks used to answer that specific assignment.
+
+## Environment
+
+```bash
+conda env create -f environment.yml
+conda activate <env-name>
