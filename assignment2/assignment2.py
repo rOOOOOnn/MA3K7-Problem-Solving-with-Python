@@ -1,59 +1,51 @@
 import random
-from fractions import Fraction
 
-EMPTY = -1  # Sentinel value for an unfilled cell
+EMPTY = -1  # empty cell
 
 
-# -------------------------
-# Part 1: Create an empty n*n board
-# -------------------------
+# ---- board ----
 def make_board(n: int):
-    """Return an n-by-n board filled with EMPTY."""
+    """n x n board."""
     return [[EMPTY for _ in range(n)] for _ in range(n)]
 
 
 def empty_cells(board):
-    """Return a list of coordinates (i, j) that are still EMPTY."""
-    n = len(board)
+    """All empty positions."""
     out = []
-    for i in range(n):
-        for j in range(n):
-            if board[i][j] == EMPTY:
+    for i, row in enumerate(board):
+        for j, v in enumerate(row):
+            if v == EMPTY:
                 out.append((i, j))
     return out
 
 
-# -------------------------
-# Determinant: exact Gaussian elimination over Q (Fractions)
-# -------------------------
+# ---- end-game invariant (proof) ----
 def invariants_hold(board) -> bool:
+    """Check R0+R1=u and R2+R3=u (end state)."""
     n = len(board)
+    if n < 4:
+        return False
     for j in range(n):
-        if board[0][j] + board[1][j] != 1:
+        a, b = board[0][j], board[1][j]
+        c, d = board[2][j], board[3][j]
+        if a == EMPTY or b == EMPTY or c == EMPTY or d == EMPTY:
             return False
-        if board[2][j] + board[3][j] != 1:
+        if a + b != 1 or c + d != 1:
             return False
     return True
 
-# -------------------------
-# Part 2: Friend (Player 1) move: random 1 in any empty cell
-# -------------------------
+
+# ---- Player 1 (random) ----
 def friend_move_random(board):
-    """Player 1 chooses a random empty cell and writes 1."""
-    empties = empty_cells(board)
-    i, j = random.choice(empties)
+    """Random 1."""
+    i, j = random.choice(empty_cells(board))
     board[i][j] = 1
     return (i, j)
 
 
-# -------------------------
-# Helper functions for the Player 0 strategy (n >= 4)
-# -------------------------
+# ---- Player 0 helpers (focus rows 0..3) ----
 def find_empty_outside_focus(board):
-    """
-    Return one empty cell (i, j) with i >= 4 (outside the first four rows),
-    or None if no such cell exists.
-    """
+    """Any empty cell with row >= 4."""
     n = len(board)
     for i in range(4, n):
         for j in range(n):
@@ -63,132 +55,85 @@ def find_empty_outside_focus(board):
 
 
 def scan_focus_pairs(board):
-    """
-    We focus on the first four rows and use two complementary row-pairs:
-      (row 0, row 1) and (row 2, row 3).
-
-    For each column j, these form two complementary cell-pairs:
-      (0, j) <-> (1, j)  and  (2, j) <-> (3, j).
-
-    This function scans those pairs and returns:
-      - ("open1", pos) if there exists a pair of the form (1, EMPTY),
-        where pos is the EMPTY cell that Player 0 should fill with 0;
-      - ("blank", pos) if there exists a pair of the form (EMPTY, EMPTY),
-        where pos is one of the empty cells (Player 0 can open a half-open pair by writing 0 there);
-      - (None, None) otherwise.
-    """
+    """Find (1,EMPTY) first; else (EMPTY,EMPTY)."""
     n = len(board)
 
-    # First priority: find a pair (1, EMPTY) to immediately complete with 0
+    # close (1, EMPTY)
     for j in range(n):
-        for (r1, r2) in [(0, 1), (2, 3)]:
-            a = board[r1][j]
-            b = board[r2][j]
+        for r1, r2 in ((0, 1), (2, 3)):
+            a, b = board[r1][j], board[r2][j]
             if a == 1 and b == EMPTY:
                 return ("open1", (r2, j))
             if b == 1 and a == EMPTY:
                 return ("open1", (r1, j))
 
-    # Second priority: find a completely blank pair (EMPTY, EMPTY) to open a half-open pair
+    # open (EMPTY, EMPTY)
     for j in range(n):
-        for (r1, r2) in [(0, 1), (2, 3)]:
-            a = board[r1][j]
-            b = board[r2][j]
-            if a == EMPTY and b == EMPTY:
+        for r1, r2 in ((0, 1), (2, 3)):
+            if board[r1][j] == EMPTY and board[r2][j] == EMPTY:
                 return ("blank", (r1, j))
 
     return (None, None)
 
 
-# -------------------------
-# Part 3: My move (Player 0) strategy (n >= 4), using Phase 1 / Phase 2
-# -------------------------
+# ---- Player 0 strategy (n >= 4) ----
 def my_move_strategy(board):
-    """
-    Player 0 strategy for n >= 4:
-
-    Phase 1 (while there exists an empty cell outside the first four rows):
-      - If there is any complementary pair in the first four rows of the form (1, EMPTY),
-        immediately play 0 in the EMPTY cell to complete it (sum becomes 1).
-      - Otherwise, play 0 somewhere outside the first four rows (to "spend" moves safely).
-
-    Phase 2 (once all cells outside the first four rows are filled):
-      - If there is a pair (1, EMPTY), complete it by placing 0.
-      - Otherwise, open a new half-open pair by placing 0 in a completely blank pair (EMPTY, EMPTY).
-      This maintains the invariant that Player 1 will eventually be forced to complete the remaining half-open pair.
-    """
+    """Phase1: spend outside. Phase2: maintain one half-open."""
     n = len(board)
-    assert n >= 4, "This strategy is intended for n >= 4."
+    assert n >= 4
 
     outside = find_empty_outside_focus(board)
 
-    # ----- Phase 1 -----
+    # Phase 1: outside available
     if outside is not None:
         kind, pos = scan_focus_pairs(board)
         if kind == "open1":
             i, j = pos
             board[i][j] = 0
             return (i, j)
-
-        # Otherwise, place 0 outside the focus region
         i, j = outside
         board[i][j] = 0
         return (i, j)
 
-    # ----- Phase 2 -----
+    # Phase 2: outside full
     kind, pos = scan_focus_pairs(board)
-    if kind == "open1":
+    if kind in ("open1", "blank"):
         i, j = pos
         board[i][j] = 0
         return (i, j)
 
-    if kind == "blank":
-        i, j = pos
-        board[i][j] = 0
-        return (i, j)
-
-    # Fallback (should rarely be needed): play any remaining empty cell
-    empties = empty_cells(board)
-    if empties:
-        i, j = empties[0]
-        board[i][j] = 0
-        return (i, j)
-    return None
+    # fallback (should not happen)
+    i, j = empty_cells(board)[0]
+    board[i][j] = 0
+    return (i, j)
 
 
-# -------------------------
-# Main simulation
-# -------------------------
-def simulate(n: int, trials: int, seed: int = 0):
-    """
-    Simulate 'trials' games for a fixed n:
-      - Player 0 uses my_move_strategy (n >= 4)
-      - Player 1 plays randomly
-    Report how many times the invariants fail (equivalently, Player 0 loses).
-    """
+# ---- simulation ----
+def simulate(n: int, trials: int, seed: int = 1):
+    """Run trials; count invariant failures."""
     random.seed(seed)
     losses = 0
 
     for _ in range(trials):
         board = make_board(n)
 
-        # Total moves = n^2; Player 0 moves on even turns, Player 1 on odd turns
         for t in range(n * n):
             if t % 2 == 0:
                 my_move_strategy(board)
             else:
                 friend_move_random(board)
 
+        # check once per game
         if not invariants_hold(board):
             losses += 1
 
     wins = trials - losses
-    print(f"n={n}, trials={trials}, losses={losses}, wins={wins}, win_rate={wins/trials:.4f}")
+    print(f"n={n}, trials={trials}, seed={seed}, losses={losses}, wins={wins}, win_rate={wins/trials:.4f}")
 
 
 if __name__ == "__main__":
-    # Edit these parameters as needed
     simulate(n=53, trials=10000, seed=1)
+
 
 '''
 n=7, trials=10000, losses=0, wins=10000, win_rate=1.0000
