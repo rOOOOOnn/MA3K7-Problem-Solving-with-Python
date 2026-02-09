@@ -26,48 +26,14 @@ def empty_cells(board):
 # -------------------------
 # Determinant: exact Gaussian elimination over Q (Fractions)
 # -------------------------
-def det_exact(board) -> int:
-    """
-    Compute det(board) exactly using Gaussian elimination with Fractions.
-    This avoids floating-point errors.
-    """
+def invariants_hold(board) -> bool:
     n = len(board)
-    A = [[Fraction(x) for x in row] for row in board]
-    sign = 1
-    det = Fraction(1)
-
-    for col in range(n):
-        # Find a pivot row with non-zero entry in this column
-        pivot = None
-        for r in range(col, n):
-            if A[r][col] != 0:
-                pivot = r
-                break
-
-        # If no pivot exists, determinant is zero
-        if pivot is None:
-            return 0
-
-        # Swap pivot row into position (row swap flips sign)
-        if pivot != col:
-            A[col], A[pivot] = A[pivot], A[col]
-            sign *= -1
-
-        pivot_val = A[col][col]
-        det *= pivot_val
-
-        # Eliminate entries below the pivot
-        for r in range(col + 1, n):
-            if A[r][col] == 0:
-                continue
-            factor = A[r][col] / pivot_val
-            for c in range(col, n):
-                A[r][c] -= factor * A[col][c]
-
-    det *= sign
-    # For an integer matrix, the determinant is an integer
-    return int(det)
-
+    for j in range(n):
+        if board[0][j] + board[1][j] != 1:
+            return False
+        if board[2][j] + board[3][j] != 1:
+            return False
+    return True
 
 # -------------------------
 # Part 2: Friend (Player 1) move: random 1 in any empty cell
@@ -198,7 +164,7 @@ def simulate(n: int, trials: int, seed: int = 0):
     Simulate 'trials' games for a fixed n:
       - Player 0 uses my_move_strategy (n >= 4)
       - Player 1 plays randomly
-    Report how many times det != 0 (i.e., Player 0 loses).
+    Report how many times the invariants fail (equivalently, Player 0 loses).
     """
     random.seed(seed)
     losses = 0
@@ -213,8 +179,7 @@ def simulate(n: int, trials: int, seed: int = 0):
             else:
                 friend_move_random(board)
 
-        d = det_exact(board)
-        if d != 0:
+        if not invariants_hold(board):
             losses += 1
 
     wins = trials - losses
@@ -223,10 +188,11 @@ def simulate(n: int, trials: int, seed: int = 0):
 
 if __name__ == "__main__":
     # Edit these parameters as needed
-    simulate(n=20, trials=10000, seed=1)
+    simulate(n=53, trials=10000, seed=1)
 
 '''
 n=7, trials=10000, losses=0, wins=10000, win_rate=1.0000
 n=10, trials=10000, losses=0, wins=10000, win_rate=1.0000
 n=15, trials=10000, losses=0, wins=10000, win_rate=1.0000
+n=53, trials=10000, losses=0, wins=10000, win_rate=1.0000
 '''
